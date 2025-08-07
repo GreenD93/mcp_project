@@ -1,0 +1,1 @@
+uvicorn weather:app --port 8001 --reload
