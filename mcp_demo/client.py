@@ -34,18 +34,12 @@ The result should be a plain json format, without code block formatting (like ``
 
 응답 형식:
 {{
-  "mcp": "weather",
-  "tool_name": "get_weather",
-  "arguments": {{"location": "서울"}},
+  "mcp": "<mcp 이름>",
+  "tool_name": "<tool 이름>",
+  "arguments": {{ <파라미터 키:값> }},
   "route": "TOOL"
 }}
-또는
-{{
-  "mcp": "news",
-  "tool_name": "get_news",
-  "arguments": {{"topic": "삼성전자"}},
-  "route": "TOOL"
-}}
+v
 필요한 정보가 부족하면 다음처럼:
 {{
   "route": "DIRECT"
