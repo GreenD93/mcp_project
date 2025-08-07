@@ -25,25 +25,27 @@ def ask_gpt_for_tool(user_input, tool_metadata):
     prompt = f"""
 사용자 입력: "{user_input}"
 
-아래는 사용 가능한 MCP 툴입니다:
+아래는 사용 가능한 MCP 툴 목록입니다:
 {json.dumps(tool_metadata, indent=2, ensure_ascii=False)}
 
-The result should be a plain json format, without code block formatting (like ```json).
+당신의 임무는 사용자의 요청에 적절한 MCP Tool이 있는지 판단하고, 있다면 어떤 Tool이고 어떤 파라미터를 넘겨야 하는지를 결정하는 것입니다.
 
-요청을 분석하여 어떤 MCP를 사용할지 판단하고, 해당 MCP tool에 전달할 파라미터를 추출하세요.
+응답 형식은 반드시 다음 중 하나여야 합니다:
 
-응답 형식:
+1. 사용자의 요청에 적절한 Tool이 존재하고, 파라미터도 충분히 주어진 경우:
 {{
   "mcp": "<mcp 이름>",
   "tool_name": "<tool 이름>",
   "arguments": {{ <파라미터 키:값> }},
   "route": "TOOL"
 }}
-v
-필요한 정보가 부족하면 다음처럼:
+
+2. MCP Tool 목록 중 사용자 요청에 대응할 수 있는 Tool이 없거나, 필요한 파라미터가 부족하여 호출이 불가능한 경우:
 {{
   "route": "DIRECT"
 }}
+
+응답은 반드시 코드 블록 없이 순수 JSON 형태로 반환하세요. (예: ```json 같은 포맷 없이)
 """
     res = client.chat.completions.create(
         model="gpt-4o",

@@ -12,6 +12,9 @@ class NewsRequest(BaseModel):
     topic: str
 
 def news_stream_generator(topic: str):
+
+    print("뉴스 MCP 호출")
+
     prompt = f"너는 주식 뉴스 분석가야. '{topic}' 종목에 대해 투자자 관점에서 요약해줘."
 
     response = llm.chat.completions.create(
@@ -24,11 +27,11 @@ def news_stream_generator(topic: str):
     )
 
     def generator():
-        yield '{"topic": "' + topic + '", "tool": "get_news", "result": "'
+        #yield '{"topic": "' + topic + '", "tool": "get_news", "result": "'
         for chunk in response:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
-        yield '"}'
+        #yield '"}'
 
     return generator()
 

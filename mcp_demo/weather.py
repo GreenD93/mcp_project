@@ -12,6 +12,9 @@ class WeatherRequest(BaseModel):
     location: str
 
 def weather_stream_generator(location: str):
+
+    print("날씨 MCP 호출")
+
     prompt = f"너는 기상 전문 AI야. '{location}' 지역의 날씨를 친절하고 정확하게 설명해줘."
 
     response = llm.chat.completions.create(
@@ -24,11 +27,11 @@ def weather_stream_generator(location: str):
     )
 
     def generator():
-        yield '{"location": "' + location + '", "tool": "get_weather", "result": "'
+        #yield '{"location": "' + location + '", "tool": "get_weather", "result": "'
         for chunk in response:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
-        yield '"}'
+        #yield '"}'
 
     return generator()
 
