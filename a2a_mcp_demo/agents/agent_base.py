@@ -285,3 +285,14 @@ class MCPAgentBase:
             result["errors"].append(f"fallback_validator_error: {ex}")
 
         return result
+    
+    def _log(self, debug: Optional[Dict[str, Any]], event: str, **fields):
+        """
+        간단한 debug 로거: debug 딕셔너리에 events 리스트를 생성하고 이벤트를 추가
+        """
+        if debug is None:
+            return
+        try:
+            debug.setdefault("events", []).append({"event": event, **fields})
+        except Exception:
+            pass

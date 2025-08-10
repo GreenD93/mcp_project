@@ -18,15 +18,6 @@ class Agent(MCPAgentBase):
     def __init__(self, llm_client: OpenAI):
         super().__init__(llm_client, agent_dir=Path(__file__).parent)
 
-    # ---- 초간단 디버그 로거(베이스 수정 불필요) ----
-    def _log(self, debug: Optional[Dict[str, Any]], event: str, **fields):
-        if debug is None:
-            return
-        try:
-            debug.setdefault("events", []).append({"event": event, **fields})
-        except Exception:
-            pass
-
     def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
         user_prompt = (
             "사용자 요청에 대해서 너의 인사이트와 정보를 알려줘\n"
