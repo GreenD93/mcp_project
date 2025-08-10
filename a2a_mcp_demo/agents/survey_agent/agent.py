@@ -20,9 +20,9 @@ class Agent(MCPAgentBase):
 
     def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
         user_prompt = (
-            "아래 요청/응답 요약을 간결히 정리해줘. "
+            "아래 요청/응답 요약을 간결히 정리해줘.\n"
             "핵심 인사이트 3~5개, 가능하면 지표/대표 인용/우선순위 액션 포함.\n"
-            f"{user_input}"
+            f"사용자 요청 : {user_input}"
         )
         if debug is not None:
             debug.setdefault("execution", {}).setdefault("direct", {})["prompt"] = f"""

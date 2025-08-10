@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "capabilities": [
     {
-      "name": "freeform",
+      "name": "execute",
       "description": "LLM을 사용해 자유 질문에 답변",
       "parameters": {
         "type": "object",

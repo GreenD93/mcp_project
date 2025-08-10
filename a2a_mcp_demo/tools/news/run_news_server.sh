@@ -1,0 +1,1 @@
+uvicorn news:app --port 8001 --reload

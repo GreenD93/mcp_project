@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "capabilities": [
     {
-      "name": "generateMarketingIdeas",
+      "name": "execute",
       "description": "제품/타깃/톤을 입력받아 캠페인 아이디어를 생성",
       "parameters": {
         "type": "object",

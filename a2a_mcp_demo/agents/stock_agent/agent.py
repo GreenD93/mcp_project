@@ -8,12 +8,11 @@ from agents.agent_base import MCPAgentBase
 class Agent(MCPAgentBase):
     """
     정책:
-      - MCP 도구가 선택·검증·호출까지 성공하면, 결과 데이터를 근거로 요약 응답(스트리밍)
-      - 그렇지 않으면 Direct 응답(스트리밍)
+      - MCP 도구가 선택·검증·호출까지 성공하면, 결과 데이터를 근거로 Topline 요약(스트리밍)
+      - 그렇지 않으면 Direct로 Topline 요약(스트리밍)
     """
     init_system = (
-        "너는 실무형 마케팅 전략가다. 간결하지만 실행 가능한 제안을 한다. "
-        "모든 제안은 한국어로, 불릿 3~5개, 각 불릿은 1문장."
+        "너는 주식과 관련된 업무를 처리하는 전문 Agent야."
     )
 
     def __init__(self, llm_client: OpenAI):
@@ -21,7 +20,7 @@ class Agent(MCPAgentBase):
 
     def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
         user_prompt = (
-            "다음 요청에 대해 실행 가능한 제안을 간결히 제시해줘.\n"
+            "사용자 요청에 대해서 너의 인사이트와 정보를 알려줘\n"
             f"사용자 요청 : {user_input}"
         )
         if debug is not None:
@@ -32,6 +31,7 @@ class Agent(MCPAgentBase):
 [유저 프롬프트]
 {user_prompt}
             """
+
         messages = [
             {"role": "system", "content": self.init_system},
             {"role": "user", "content": user_prompt},
@@ -44,14 +44,16 @@ class Agent(MCPAgentBase):
     def _summarize_with_data(self, user_input: str, data) -> Iterator[str]:
         try:
             data_text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False, indent=2)
+            
         except Exception:
             data_text = str(data)
 
         messages = [
             {"role": "system", "content": self.init_system},
             {"role": "user", "content":
-                "아래 '도구 결과'를 근거로, 요청에 맞는 마케팅 인사이트를 불릿 3~5개로 요약해줘.\n"
-                f"요청: {user_input}\n\n도구 결과:\n{data_text}"
+                "다음 '참고 자료'를 근거로 핵심 정보와 결과를 요역해서 작성해줘.\n"
+                f"요청: {user_input}\n\n 참고 자료:\n{data_text}\n\n"
+                "- 핵심 인사이트(3~5개)\n- 대외 상황 및 경쟁사 정보들"
             },
         ]
         resp = self.llm.chat.completions.create(model="gpt-4o", messages=messages, stream=True)
@@ -80,8 +82,13 @@ class Agent(MCPAgentBase):
                 debug["execution"]["validation"] = v
                 if v["ok"]:
                     try:
+
                         data = self.call_mcp(mcp, tool, args, stream=False)
+
+                        data = data["info"]
+
                         debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
+
                         yield from self._summarize_with_data(user_input, data)
                         return
                     except Exception as ex:

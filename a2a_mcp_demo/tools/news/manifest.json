@@ -1,0 +1,19 @@
+{
+  "server": "news",
+  "tools": [
+    {
+      "name": "get_news",
+      "description": "회사에 대한 뉴스 정보들과 보고서 내용을 요약해서 제공합니다.",
+      "parameters": {
+          "type": "object",
+          "properties": {
+              "company": {
+                  "type": "string",
+                  "description": "주식 시장에 상장된 회사 이름"
+              }
+          },
+          "required": ["company"]
+      }
+    }
+  ]
+}

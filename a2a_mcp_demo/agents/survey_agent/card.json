@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "capabilities": [
     {
-      "name": "freeformSurvey",
+      "name": "execute",
       "description": "설문 요약/테마 추출/감성 분석/액션 아이템 도출",
       "parameters": {
         "type": "object",
