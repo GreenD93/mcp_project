@@ -6,22 +6,11 @@
   "capabilities": [
     {
       "name": "execute",
-      "description": "자연어 유틸리티 요청을 받아 적합한 MCP 도구를 판단하고 필요한 파라미터를 추출해 호출한 뒤 결과를 요약하여 응답합니다.",
+      "description": "자연어 유틸리티 실행 요청을 받아 적합한 MCP 도구를 판단하여 업무를 수행합니다.",
       "parameters": {
         "type": "object",
         "properties": {
-          "user_input": {
-            "type": "string",
-            "description": "요청 문장 (예: '조용걸에게 일정 변경 메일 보내줘', '아래 회의록 요약해줘')."
-          },
-          "text": {
-            "type": "string",
-            "description": "요약/분석할 원문 텍스트(예: 회의록 본문). 선택 항목."
-          },
-          "options": {
-            "type": "object",
-            "description": "도구 호출에 활용할 추가 옵션(예: 요약 길이, 톤 등). 선택 항목."
-          }
+          "user_input": { "type": "string", "description": "자연어 유틸리티 실행 요청 및 응답" }
         },
         "required": ["user_input"]
       }
