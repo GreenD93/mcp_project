@@ -14,8 +14,10 @@ class Agent(MCPAgentBase):
       - 도구 사용 경로에서 실패(검증 실패/호출 예외) → plan.reason으로 실패 사유 친절 안내(LLM)
     """
     init_system = (
-        "너는 메일 전송을 포함한 다양한 유틸리티성 업무(알림 전송, 간단 조회·정리 등)를 처리하는 에이전트야. "
-        "항상 공손하고 간결하게, 과한 추측 없이 요점만 전달해."
+        "너는 메일 발송, 회의록 요약, 알림/일정 안내, 간단 조회·변환 등 다양한 유틸리티 요청을 처리하는 에이전트야. "
+        "가능하면 MCP 도구를 적절히 선택·호출하고, 불가한 경우에는 정중히 사유를 안내해. "
+        "답변은 공손하고 간결하게 작성하고, 불필요한 추측은 하지 마. "
+        "민감정보(이메일·전화번호·토큰 등)는 항상 일부 마스킹해."
     )
 
     def __init__(self, llm_client: OpenAI):
@@ -28,9 +30,10 @@ class Agent(MCPAgentBase):
         reason = plan.get("reason") or "사용 가능한 도구로는 요청을 처리하기 어렵습니다."
 
         user_prompt = (
-            "현재 사용 가능한 도구로는 요청을 바로 처리하기 어렵다는 점을 공손하게 양해 구하는 메시지를 작성해줘. "
-            "가능하면 사용자가 요청을 조금 바꿔서 다시 시도해 달라고 정중히 부탁해. "
-            "장황한 대안/체크리스트는 넣지 말고 2~4문장으로 간단히.\n\n"
+            "다음 정보를 바탕으로, 현재 사용 가능한 도구로는 요청을 즉시 처리하기 어렵다는 점을 "
+            "정중하게 안내하는 2~4문장을 작성해줘. 아래 '사유' 문장은 그대로 포함하고, "
+            "필요하다면 사용자가 요청을 어떻게 바꾸면 좋을지 한 문장만 제안해(선택). "
+            "체크리스트나 과도한 지시는 넣지 마.\n\n"
             f"[사용자 요청]\n{user_input}\n\n[사유]\n{reason}"
         )
         if debug is not None:
@@ -71,9 +74,10 @@ class Agent(MCPAgentBase):
 
         sys = self.init_system
         usr = (
-            "아래 실행 결과를 근거로, 사용자의 요청을 처리하기 위해 어떤 도구/조치를 수행했고 "
-            "어떤 결과가 반환되었는지를 간단히 요약해줘. "
-            "민감정보(이메일·전화·토큰 등)는 그대로 노출하지 말고 필요 시 일부 마스킹 해.\n\n"
+            "아래 정보를 바탕으로, 사용자의 요청을 처리하기 위해 수행한 조치(사용 도구/엔드포인트 포함), "
+            "사용한 핵심 인자, 그리고 반환된 결과의 요점을 2~4문장으로 간결히 요약해줘. "
+            "성공/실패/부분 성공 여부가 드러나도록 쓰고, 민감정보는 일부 마스킹해. "
+            "필요하면 마지막에 사용자에게 도움이 될 짧은 한 문장을 덧붙여도 좋아(선택).\n\n"
             f"[사용자 요청]\n{user_input}\n\n"
             f"[도구]\n{mcp}.{tool}\n\n"
             f"[입력 인자]\n{json.dumps(args or {}, ensure_ascii=False, indent=2)}\n\n"
@@ -101,10 +105,11 @@ class Agent(MCPAgentBase):
         system_msg = (
             self.init_system
             + " 실패 사유를 2~4문장으로 공손하고 간단히 설명해. "
-              "아래 '이유' 문장만 그대로 포함하고, 불필요한 추측/체크리스트는 넣지 마."
+              "아래 '이유' 문장을 그대로 포함하고, 체크리스트나 과도한 지시는 넣지 마. "
+              "가능하면 요청을 다시 시도할 때 도움이 될 짧은 한 문장을 덧붙여도 좋아(선택)."
         )
         user_msg = (
-            "아래 정보를 바탕으로, 도구 실행을 시도했지만 완료되지 않았음을 정중히 안내하는 메시지를 작성해줘. "
+            "아래 정보를 바탕으로, MCP 도구 실행을 시도했지만 완료되지 않았음을 정중히 알리는 메시지를 작성해줘. "
             "핵심은 '이유' 문장을 그대로 포함하는 거야.\n\n"
             f"[사용자 요청]\n{user_input}\n\n[이유]\n{reason}"
         )
@@ -137,7 +142,7 @@ class Agent(MCPAgentBase):
             for ch in self._direct_stream(user_input, debug=debug):
                 yield ch
             self._log(debug, "run.end", status="failed:no_tools")
-            debug["log"] = debug.get("events", [])   # ← 추가
+            debug["log"] = debug.get("events", [])
             return
 
         # 2) 도구 선택
@@ -152,7 +157,7 @@ class Agent(MCPAgentBase):
             for ch in self._direct_stream(user_input, debug=debug):
                 yield ch
             self._log(debug, "run.end", status="failed:tool_not_selected")
-            debug["log"] = debug.get("events", [])   # ← 추가
+            debug["log"] = debug.get("events", [])
             return
 
         # 3) 인자 검증
@@ -173,7 +178,7 @@ class Agent(MCPAgentBase):
             for ch in self._explain_failure_from_plan(user_input, debug=debug):
                 yield ch
             self._log(debug, "run.end", status="failed:validation")
-            debug["log"] = debug.get("events", [])   # ← 추가
+            debug["log"] = debug.get("events", [])
             return
 
         # 4) 도구 호출
@@ -181,7 +186,7 @@ class Agent(MCPAgentBase):
             self._log(debug, "mcp.call.start", mcp=mcp, tool=tool, args=args)
             data = self.call_mcp(mcp, tool, args, stream=False)
             self._log(debug, "mcp.call.ok")
-                
+
             exec_ctx["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
 
             # 범용 요약
@@ -191,7 +196,7 @@ class Agent(MCPAgentBase):
                 yield ch
 
             self._log(debug, "run.end", status="ok")
-            debug["log"] = debug.get("events", [])   # ← 추가
+            debug["log"] = debug.get("events", [])
             return
 
         except Exception as ex:
@@ -200,5 +205,5 @@ class Agent(MCPAgentBase):
             for ch in self._explain_failure_from_plan(user_input, debug=debug):
                 yield ch
             self._log(debug, "run.end", status="failed:mcp_call")
-            debug["log"] = debug.get("events", [])   # ← 추가
+            debug["log"] = debug.get("events", [])
             return
