@@ -57,7 +57,7 @@ def list_tools():
                 "properties": {
                     "company": {
                         "type": "string",
-                        "description": "주식 시장에 상장된 회사 이름"
+                        "description": "회사 이름"
                     }
                 },
                 "required": ["company"]
