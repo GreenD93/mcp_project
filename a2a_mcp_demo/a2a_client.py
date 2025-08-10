@@ -1,11 +1,10 @@
 # a2a_client.py — LLM 기반 에이전트 선택 + execute() 통일 (히스토리 미사용)
-# 규칙: 각 에이전트 폴더는 card.json(카드) + agent.py(실행)만 사용
 
 import json
 import importlib.util
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Iterator, Union
+from typing import Any, Dict, List, Iterator, Union, Optional  # ★ Optional 추가
 
 Chat = List[Dict[str, str]]
 
@@ -119,19 +118,25 @@ class A2AClient:
             for it in self._agents
         ]
 
-    # ---------- 선택 + 실행 (에이전트에는 최신 user_input만 전달) ----------
+    # ---------- 선택 + 실행 ----------
     # 반환: {"agent_name": str|None, "result": Iterator[str] | Dict[str, Any], "debug": {...}}
-    def run(self, messages_or_text: Union[str, Chat]) -> Dict[str, Any]:
+    def run(self, messages_or_text: Union[str, Chat], debug: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        app.py에서 debug=dict()를 넘기면, 에이전트가 내부 디버그를 채워서 되돌려줍니다.
+        """
+        if debug is None:
+            debug = {}
+
         _, user_input = self._normalize_input(messages_or_text)
         decision, prompt = self._ask_gpt_for_agent(user_input)
 
-        debug = {
+        debug.update({
             "prompt": prompt,           # A2A → LLM 라우팅 프롬프트
             "decision": decision,       # LLM 선택 결과(JSON)
             "execution": {
                 "requested_agent_input": user_input,  # A2A → Agent 전달 입력
             }
-        }
+        })
 
         def attach_init_and_preview(runner):
             # 시작점(초기 프롬프트) 명시
@@ -143,7 +148,7 @@ class A2AClient:
             if init_info:
                 debug["execution"]["init"] = init_info
 
-            # ✅ 미리보기는 오직 메시지 리스트 하나로만 (initial_messages)
+            # (선택) initial_messages 미리보기
             preview = getattr(runner, "build_messages", None)
             if preview:
                 try:
@@ -161,7 +166,8 @@ class A2AClient:
                 if runner is not None and hasattr(runner, "execute"):
                     attach_init_and_preview(runner)  # 실행 전에 디버그 확정
                     try:
-                        return {"agent_name": target_name, "result": runner.execute(user_input), "debug": debug}
+                        # ★ debug를 그대로 넘겨서 에이전트가 tool 선택/검증/plan/프롬프트를 채우게 함
+                        return {"agent_name": target_name, "result": runner.execute(user_input, debug=debug), "debug": debug}
                     except Exception:
                         pass
 
@@ -169,12 +175,11 @@ class A2AClient:
         if self._fallback and hasattr(self._fallback, "execute"):
             attach_init_and_preview(self._fallback)
             try:
-                return {"agent_name": self._fallback_name, "result": self._fallback.execute(user_input), "debug": debug}
+                return {"agent_name": self._fallback_name, "result": self._fallback.execute(user_input, debug=debug), "debug": debug}
             except Exception:
                 return {"agent_name": self._fallback_name, "result": {"error": "Fallback agent failed"}, "debug": debug}
 
         return {"agent_name": None, "result": {"error": "No agent could handle the request"}, "debug": debug}
-
 
     # ---------- 동적 로더 ----------
     def _load_agent_runner(self, agent_py_path: Path):

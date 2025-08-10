@@ -1,143 +1,149 @@
-# app.py — Streamlit A2A Chatbot (사이드바: Agent 카드 뷰어, 메인: 챗)
-# 실행: streamlit run app.py
-
-import os
+# app.py
 import json
-import types
 from pathlib import Path
-from typing import Iterator, Union, Dict, Any
-
 import streamlit as st
 from openai import OpenAI
+from types import GeneratorType
 
 from a2a_client import A2AClient
 
-st.set_page_config(page_title="A2A Chatbot", layout="wide")
+st.set_page_config(page_title="A2A → Agent → MCP Demo", layout="wide")
+st.title("🤖 A2A → Agent → MCP 데모")
 
+# -----------------------------
+# 초기화
+# -----------------------------
 # OpenAI
 OPENAI_API_KEY = ""
 
 if not OPENAI_API_KEY:
     st.warning("OPENAI_API_KEY가 설정되지 않았습니다. 환경변수 또는 .streamlit/secrets.toml에 설정하세요.")
-if "llm_client" not in st.session_state:
-    st.session_state.llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# A2A
-def init_a2a():
-    st.session_state.a2a = A2AClient(agents_root="agents", llm_client=st.session_state.llm_client)
-    st.session_state.agents = st.session_state.a2a.discover()
-    if st.session_state.agents:
-        st.session_state.selected_agent_name = st.session_state.agents[0]["name"]
-    else:
-        st.session_state.selected_agent_name = None
+if "llm" not in st.session_state:
+    # 환경변수 OPENAI_API_KEY 필요
+    st.session_state.llm = OpenAI(api_key=OPENAI_API_KEY)
 
-if "a2a" not in st.session_state:
-    init_a2a()
+if "client" not in st.session_state:
+    st.session_state.client = A2AClient(agents_root="agents", llm_client=st.session_state.llm)
+
+client: A2AClient = st.session_state.client
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []  # [{role, content}]
+    st.session_state.messages = []  # [{"role":"user"/"assistant","content": "..."}]
 
-# ───────────────────────────────────────────────
-# 사이드바: Agent 카드 뷰어
-# ───────────────────────────────────────────────
+# -----------------------------
+# 사이드바: 에이전트 카드 탐색
+# -----------------------------
 with st.sidebar:
-    st.header("🗂️ Agent 카드 뷰어")
+    st.header("🗂 등록된 Agents")
 
-    agents = st.session_state.get("agents", [])
-    names = [a["name"] for a in agents] if agents else []
-    if not names:
-        st.info("등록된 에이전트가 없습니다.\n`agents/<name>/{card.json, agent.py}`를 추가하세요.")
+    discovered = client.discover()  # [{name, description, version, path}]
+    if not discovered:
+        st.info("등록된 에이전트가 없습니다. `agents/<agent>/card.json`을 추가하세요.")
     else:
-        default_idx = 0
-        if st.session_state.get("selected_agent_name") in names:
-            default_idx = names.index(st.session_state["selected_agent_name"])
-        selected_name = st.selectbox("Agent 리스트", names, index=default_idx, key="agent_select_sidebar")
+        names = [d["name"] for d in discovered]
+        name_to_path = {d["name"]: d["path"] for d in discovered}
 
-        selected = next((a for a in agents if a["name"] == selected_name), None)
-        if selected:
-            st.session_state.selected_agent_name = selected_name
-            card_path = Path(selected["path"]) / "card.json"
-            try:
-                card_json = json.loads(Path(card_path).read_text(encoding="utf-8"))
-                st.caption(f"카드 경로: `{card_path}`")
-                st.code(json.dumps(card_json, ensure_ascii=False, indent=2), language="json")
-            except Exception as e:
-                st.error(f"카드 로딩 실패: {e}")
+        selected = st.selectbox("Agent 카드 미리보기", names, index=0)
+        sel_path = Path(name_to_path[selected]) / "card.json"
 
-    if st.button("🔄 에이전트 새로고침"):
-        init_a2a()
-        st.rerun()
+        try:
+            card_json = json.loads(Path(sel_path).read_text(encoding="utf-8"))
+        except Exception as e:
+            card_json = {"error": f"card.json 로드 실패: {e}"}
 
-    if st.button("🗑️ 대화 초기화"):
-        st.session_state.messages = []
-        st.rerun()
+        st.markdown("**선택된 Agent:** " + selected)
+        st.code(json.dumps(card_json, ensure_ascii=False, indent=2), language="json")
 
-# ───────────────────────────────────────────────
-# 메인 화면: 챗 인터페이스
-# ───────────────────────────────────────────────
-st.title("🤝 A2A → Agent Chatbot")
-
-# 히스토리 렌더
+# -----------------------------
+# 메세지 히스토리 렌더링
+# -----------------------------
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# 입력
-user_input = st.chat_input("메시지를 입력하세요")
+# -----------------------------
+# 입력 & 실행
+# -----------------------------
+user_input = st.chat_input("무엇을 도와드릴까요?")
 if user_input:
+    # 대화 히스토리에 사용자 메시지 추가
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
+    # 실행 (A2A 라우팅 + Agent 실행)
+    resp = client.run(user_input, debug={})  # {"agent_name","result","debug"}
+    agent_name = resp.get("agent_name")
+    result = resp.get("result")
+    debug = resp.get("debug", {})
+
+    # 선택된 에이전트 표시(옵션)
+    if agent_name:
+        st.caption(f"🧭 라우팅된 Agent: **{agent_name}**")
+
+    # 응답 렌더링
     with st.chat_message("assistant"):
-        placeholder = st.empty()
-        full_text = ""
+        ph = st.empty()
+        full = ""
 
-        try:
-            # 1) 실행 전: 라우팅 + 디버그 정보 미리 받기
-            out = st.session_state.a2a.run(list(st.session_state.messages))
-            agent_name = out.get("agent_name")
-            result = out.get("result")
-            debug = out.get("debug", {})
+        # 스트리밍 여부 판단
+        is_stream = isinstance(result, GeneratorType) or (
+            hasattr(result, "__iter__") and not isinstance(result, (str, bytes, dict, list, tuple))
+        )
 
-            # 2) 디버그 먼저 표시 (접힘)
-            if agent_name:
-                st.caption(f"🛠️ 선택된 Agent: **{agent_name}**")
-
-                with st.expander("라우팅 디버그 보기", expanded=False):
-                    st.markdown("**선택 프롬프트 (A2A → LLM)**")
-                    st.code(debug.get("prompt", ""), language="markdown")
-
-                    st.markdown("**LLM 결정(JSON)**")
-                    st.code(json.dumps(debug.get("decision", {}), ensure_ascii=False, indent=2), language="json")
-
-                    st.markdown("**Agent 실행 요청 입력 (A2A → Agent)**")
-                    st.code(debug.get("execution", {}).get("requested_agent_input", ""), language="text")
-
-                    # 시작점(초기 system/user 템플릿)만 명시
-                    init_info = debug.get("execution", {}).get("init", {})
-                    if init_info:
-                        st.markdown("**Agent 시작점(초기 프롬프트)**")
-                        st.code(json.dumps(init_info, ensure_ascii=False, indent=2), language="json")
-
-                    # ✅ 초기 메시지 미리보기(있을 때만)
-                    init_msgs = debug.get("execution", {}).get("initial_messages")
-                    if init_msgs:
-                        st.markdown("**초기 메시지 미리보기**")
-                        st.code(json.dumps(init_msgs, ensure_ascii=False, indent=2), language="json")
-
-            # 3) 이제 스트리밍 시작
-            is_stream = hasattr(result, "__iter__") and not isinstance(result, (dict, list, str))
-            if is_stream:
-                for token in result:
-                    full_text += token
-                    placeholder.markdown(full_text)
+        if is_stream:
+            for tok in result:
+                full += tok
+                ph.markdown(full)
+        else:
+            if isinstance(result, str):
+                full = result
+            elif isinstance(result, (dict, list, tuple)):
+                full = json.dumps(result, ensure_ascii=False, indent=2)
             else:
-                full_text = json.dumps(result, ensure_ascii=False, indent=2)
-                placeholder.markdown(f"```json\n{full_text}\n```")
-        except Exception as e:
-            full_text = f"[에러] 응답 생성 중 문제: {e}"
-            placeholder.error(full_text)
+                full = str(result)
+            ph.markdown(full)
 
-    # 어시스턴트 메시지 저장
-    st.session_state.messages.append({"role": "assistant", "content": full_text})
+    # 대화 히스토리에 어시스턴트 메시지 추가
+    st.session_state.messages.append({"role": "assistant", "content": full})
+
+    # -------------------------
+    # 🛠️ Agent 실행 디버그 (툴 선택/Direct)
+    # -------------------------
+    ex = debug.get("execution", {})
+    with st.expander("🛠️ Agent 실행 디버그 (툴 선택/Direct)", expanded=False):
+
+        if "prompt" in debug:
+            st.markdown("**라우팅 프롬프트 (A2A → LLM)**")
+            st.code(debug["prompt"], language="markdown")
+        if "decision" in debug:
+            st.markdown("**라우팅 결과 (LLM JSON)**")
+            st.code(json.dumps(debug["decision"], ensure_ascii=False, indent=2), language="json")
+
+        # 실행 전략/사유
+        plan = ex.get("plan")
+        if plan:
+            st.markdown("**실행 전략(plan)**")
+            st.code(json.dumps(plan, ensure_ascii=False, indent=2), language="json")
+
+        # MCP 도구가 등록되어 있고 판단을 수행한 경우에만 노출
+        if "tool_selection_prompt" in ex:
+            st.markdown("**Tool 선택 프롬프트**")
+            st.code(ex["tool_selection_prompt"], language="markdown")
+
+        if "decision" in ex:
+            dec = ex["decision"]
+            if isinstance(dec, dict) and "reason" in dec:
+                st.markdown(f"**선택 사유(reason):** {dec['reason']}")
+            st.markdown("**Tool 선택 결과 (LLM JSON)**")
+            st.code(json.dumps(dec, ensure_ascii=False, indent=2), language="json")
+
+        if "validation" in ex:
+            st.markdown("**인자 검증 결과 (JSON Schema)**")
+            st.code(json.dumps(ex["validation"], ensure_ascii=False, indent=2), language="json")
+
+        # Direct로 갔을 때만 Direct 프롬프트 미리보기 노출
+        if "direct" in ex and "prompt" in ex["direct"]:
+            st.markdown("**Direct 프롬프트 (미리보기)**")
+            st.code(ex["direct"]["prompt"], language="markdown")
