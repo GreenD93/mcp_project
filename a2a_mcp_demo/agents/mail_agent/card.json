@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "name": "MailSenderAgent",
+  "description": "사용자의 요청을 분석하여 수신인 이름, 제목, 본문을 추출하고 매핑된 이메일 주소로 메일을 전송",
+  "version": "0.1.0",
+  "capabilities": [
+    {
+      "name": "execute",
+      "description": "자연어로 된 메일 발송 요청을 받아 수신인/제목/본문을 추출하여 send_mail_mapped MCP 도구를 호출",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_input": {
+            "type": "string",
+            "description": "메일 발송 요청 문장 (예: '조용걸에게 제목: 견적서, 본문: 회의 자료 보내줘')"
+          }
+        },
+        "required": ["user_input"]
+      }
+    }
+  ],
+  "metadata": {
+    "keywords": ["mail", "email", "메일", "전송", "알림"],
+    "tools": ["mail_sender"]
+  }
+}
