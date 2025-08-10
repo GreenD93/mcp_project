@@ -1,5 +1,5 @@
-# agents/agent_base.py
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Iterator
 
@@ -19,25 +19,20 @@ class MCPAgentBase:
       - LLM으로 MCP 도구 선택 질의 (ask_gpt_for_tool)
       - 선택된 도구 호출 (call_mcp)
       - arguments JSON Schema 검증 (validate_args)
-
-    응답 생성/프롬프트/폴백 정책은 하위 Agent의 execute()에서 구현.
     """
 
-    # 하위 에이전트가 오버라이드(툴 선택 프롬프트에 역할 힌트로 사용)
     init_system: str = ""
 
     def __init__(self, llm_client: OpenAI, agent_dir: Optional[Path] = None):
         self.llm: OpenAI = llm_client
         self.agent_dir: Path = agent_dir or Path(__file__).parent
+        # 🔹 run 별 누적 로그 버퍼
+        self.run_log: List[Dict[str, Any]] = []
 
         # card.json
         self.card: Dict[str, Any] = self._read_json(self.agent_dir / "card.json") or {}
         meta: Dict[str, Any] = self.card.get("metadata") or {}
 
-        # tools 정책:
-        #  - 없거나 빈 배열: MCP 비활성(툴 없음)
-        #  - "*" (문자열): 모든 서버 허용
-        #  - ["news","weather"] (배열): 해당 서버만 허용
         raw_tools = meta.get("tools", [])
         self.allow_all_tools: bool = False
         if isinstance(raw_tools, str) and raw_tools.strip() == "*":
@@ -46,14 +41,27 @@ class MCPAgentBase:
         elif isinstance(raw_tools, list):
             self.allowed_servers = set(raw_tools)
         else:
-            self.allowed_servers = set()  # 기본: 없음
+            self.allowed_servers = set()
 
-        # tools/
         project_root = Path(__file__).resolve().parents[1]
         self.tools_root: Path = project_root / "tools"
         self.server_map: Dict[str, str] = self._read_json(self.tools_root / "mcp_servers.json") or {}
-        # { server: { tool_name: {description, parameters, path, method} } }
         self.registry: Dict[str, Dict[str, Dict[str, Any]]] = self._load_registry()
+
+    # ---------------- Run-log helpers ----------------
+    def reset_run_log(self):
+        self.run_log = []
+
+    def log(self, event: str, **fields):
+        rec = {
+            "ts": time.time(),
+            "event": event,
+            **fields
+        }
+        for k, v in list(rec.items()):
+            if isinstance(v, str) and len(v) > 4000:
+                rec[k] = v[:4000] + " …(truncated)"
+        self.run_log.append(rec)
 
     # ---------------- IO helpers ----------------
     def _read_json(self, path: Path) -> Optional[Dict[str, Any]]:
@@ -64,13 +72,10 @@ class MCPAgentBase:
         except Exception:
             return None
 
-    # --------------- 레지스트리 구성 ---------------
     def _load_registry(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
         reg: Dict[str, Dict[str, Dict[str, Any]]] = {}
         if not self.tools_root.exists():
             return reg
-
-        # 🔒 tools가 비어 있고 allow_all_tools도 아니면, 툴 없음
         if not self.allow_all_tools and len(self.allowed_servers) == 0:
             return reg
 
@@ -83,11 +88,8 @@ class MCPAgentBase:
             server = manifest.get("server")
             if not server:
                 continue
-
-            # 허용 서버 필터
             if not self.allow_all_tools and server not in self.allowed_servers:
                 continue
-
             for t in manifest.get("tools", []):
                 name = t.get("name")
                 if not name:
@@ -100,7 +102,6 @@ class MCPAgentBase:
                 }
         return reg
 
-    # ---------- LLM 프롬프트용 간단 목록 ----------
     def list_tools_for_prompt(self) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         for server, tools in self.registry.items():
@@ -113,7 +114,6 @@ class MCPAgentBase:
                 })
         return out
 
-    # ---------- Tool 선택 프롬프트(이유 포함) ----------
     def build_tool_selection_prompt(self, user_input: str) -> str:
         role_text = (
             self.init_system
@@ -150,9 +150,9 @@ class MCPAgentBase:
   "reason": "도구를 쓰지 않는 이유(부적합/필수 파라미터 부족 등)"
 }}
 """.strip()
+        self.log("tool.prompt", role_text=role_text, user_input=user_input, tool_count=len(tool_metadata))
         return prompt
 
-    # --------------- LLM: MCP 도구 선택 ---------------
     def ask_gpt_for_tool(self, user_input: str, *, prompt_override: Optional[str] = None) -> Dict[str, Any]:
         prompt = prompt_override or self.build_tool_selection_prompt(user_input)
         res = self.llm.chat.completions.create(
@@ -161,23 +161,21 @@ class MCPAgentBase:
             temperature=0,
         )
         raw = (res.choices[0].message.content or "").strip()
+        self.log("tool.decision.raw", raw=raw)
         try:
             data = json.loads(raw)
         except Exception:
+            self.log("tool.decision.parse_error")
             return {"route": "DIRECT", "error": "parse_error", "raw": raw}
-
-        # "server" 키 허용 → "mcp"로 정규화
         if "server" in data and "mcp" not in data:
             data["mcp"] = data.pop("server")
-
         if data.get("route") == "TOOL":
             if not data.get("mcp") or not data.get("tool_name"):
                 return {"route": "DIRECT", "error": "missing_keys", "raw": data}
             data.setdefault("arguments", {})
-
+        self.log("tool.decision.parsed", decision=data)
         return data
 
-    # ---------------- MCP 호출 ----------------
     def call_mcp(self, mcp: str, tool_name: str, args: Dict[str, Any], *, stream: bool = True):
         if mcp not in self.registry or tool_name not in self.registry[mcp]:
             raise RuntimeError(f"Unregistered tool: {mcp}.{tool_name}")
@@ -187,22 +185,44 @@ class MCPAgentBase:
         spec = self.registry[mcp][tool_name]
         base = self.server_map[mcp].rstrip("/")
         url = f"{base}{spec['path']}"
-        method = spec["method"]
+        method = (spec["method"] or "POST").upper()
+
+        t0 = time.time()
+        self.log("mcp.call.start", mcp=mcp, tool=tool_name, url=url, method=method, args=args, stream=stream)
 
         if method == "GET":
             res = requests.get(url, params=args or {}, stream=stream, timeout=None)
         else:
             res = requests.post(url, json=args or {}, stream=stream, timeout=None)
+
+        self.log("mcp.call.response.head",
+                 status=res.status_code,
+                 headers=dict(res.headers),
+                 elapsed_ms=int((time.time() - t0) * 1000))
         res.raise_for_status()
 
         if not stream:
-            return res.json()
+            data = res.json()
+            try:
+                preview = json.dumps(data, ensure_ascii=False)[:1000]
+            except Exception:
+                preview = str(data)[:1000]
+            self.log("mcp.call.response.body", size=len(preview), preview=preview)
+            return data
 
         def gen() -> Iterator[str]:
+            bytes_total = 0
             for chunk in res.iter_content(chunk_size=None):
                 if chunk:
+                    bytes_total += len(chunk)
                     yield chunk.decode(errors="ignore")
+            self.log("mcp.call.stream.end",
+                     bytes_total=bytes_total,
+                     elapsed_ms=int((time.time() - t0) * 1000))
         return gen()
+
+    def execute(self, user_input: str, debug: Optional[Dict[str, Any]] = None):
+        raise NotImplementedError
 
     # --------------- JSON Schema 검증 ---------------
     def get_tool_schema(self, mcp: str, tool_name: str) -> Optional[Dict[str, Any]]:
@@ -221,6 +241,7 @@ class MCPAgentBase:
             result["warnings"].append("no_schema: parameters schema not provided")
             return result
 
+        # jsonschema 있으면 풀 검증
         if Draft7Validator is not None:
             try:
                 validator = Draft7Validator(schema)
@@ -243,6 +264,7 @@ class MCPAgentBase:
                 if k not in arguments:
                     result["ok"] = False
                     result["errors"].append(f"missing required property: '{k}'")
+
             _type_map = {
                 "string": str, "number": (int, float), "integer": int,
                 "boolean": bool, "object": dict, "array": list,
@@ -263,7 +285,3 @@ class MCPAgentBase:
             result["errors"].append(f"fallback_validator_error: {ex}")
 
         return result
-
-    # --------------- 필수: 하위 에이전트가 구현 ---------------
-    def execute(self, user_input: str, debug: Optional[Dict[str, Any]] = None):
-        raise NotImplementedError

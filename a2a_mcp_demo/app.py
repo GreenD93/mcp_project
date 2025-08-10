@@ -147,3 +147,16 @@ if user_input:
         if "direct" in ex and "prompt" in ex["direct"]:
             st.markdown("**Direct 프롬프트 (미리보기)**")
             st.code(ex["direct"]["prompt"], language="markdown")
+
+    with st.expander("🧾 실행 로그 (모든 이벤트)", expanded=False):
+        run_log = debug.get("log", [])
+        if run_log:
+            st.code(json.dumps(run_log, ensure_ascii=False, indent=2), language="json")
+            st.download_button(
+                label="로그 JSON 다운로드",
+                data=json.dumps(run_log, ensure_ascii=False, indent=2),
+                file_name="agent_run_log.json",
+                mime="application/json",
+            )
+        else:
+            st.info("현재 실행에서 수집된 로그가 없습니다.")

@@ -18,6 +18,15 @@ class Agent(MCPAgentBase):
     def __init__(self, llm_client: OpenAI):
         super().__init__(llm_client, agent_dir=Path(__file__).parent)
 
+    # ---- 초간단 디버그 로거(베이스 수정 불필요) ----
+    def _log(self, debug: Optional[Dict[str, Any]], event: str, **fields):
+        if debug is None:
+            return
+        try:
+            debug.setdefault("events", []).append({"event": event, **fields})
+        except Exception:
+            pass
+
     def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
         user_prompt = (
             "사용자 요청에 대해서 너의 인사이트와 정보를 알려줘\n"
@@ -31,6 +40,7 @@ class Agent(MCPAgentBase):
 [유저 프롬프트]
 {user_prompt}
             """
+        self._log(debug, "direct.start", user_input=user_input)
 
         messages = [
             {"role": "system", "content": self.init_system},
@@ -40,11 +50,20 @@ class Agent(MCPAgentBase):
         for ch in resp:
             if getattr(ch.choices[0].delta, "content", None):
                 yield ch.choices[0].delta.content
+        self._log(debug, "direct.end")
 
-    def _summarize_with_data(self, user_input: str, data) -> Iterator[str]:
+    def _summarize_with_data(self, user_input: str, data, debug: Optional[Dict[str, Any]] = None,
+                             mcp: Optional[str] = None, tool: Optional[str] = None, args: Optional[Dict[str, Any]] = None
+                             ) -> Iterator[str]:
+        # 데이터 프리뷰만 살짝 기록(너무 길어지지 않게)
+        try:
+            preview = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)[:500]
+        except Exception:
+            preview = str(data)[:500]
+        self._log(debug, "summarize.start", mcp=mcp, tool=tool, args=args, data_preview=preview)
+
         try:
             data_text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False, indent=2)
-            
         except Exception:
             data_text = str(data)
 
@@ -60,18 +79,25 @@ class Agent(MCPAgentBase):
         for ch in resp:
             if getattr(ch.choices[0].delta, "content", None):
                 yield ch.choices[0].delta.content
+        self._log(debug, "summarize.end")
 
     def execute(self, user_input: str, debug: Optional[Dict[str, Any]] = None):
         if debug is None:
             debug = {}
+        self._log(debug, "run.start", user_input=user_input)
 
         has_tools = any(self.registry.values())
+        debug.setdefault("execution", {})["plan"] = {"mode": None}
+        self._log(debug, "registry", has_tools=has_tools, servers=list(self.registry.keys()))
+
         if has_tools:
             tool_prompt = self.build_tool_selection_prompt(user_input)
-            debug.setdefault("execution", {})["tool_selection_prompt"] = tool_prompt
+            debug["execution"]["tool_selection_prompt"] = tool_prompt
+            self._log(debug, "tool.prompt.ready")
 
             decision = self.ask_gpt_for_tool(user_input, prompt_override=tool_prompt)
             debug["execution"]["decision"] = decision
+            self._log(debug, "tool.decision", decision=decision)
 
             if decision.get("route") == "TOOL":
                 mcp = decision["mcp"]
@@ -80,29 +106,44 @@ class Agent(MCPAgentBase):
 
                 v = self.validate_args(mcp, tool, args)
                 debug["execution"]["validation"] = v
+                self._log(debug, "tool.validation", ok=v["ok"], errors=v["errors"], warnings=v["warnings"])
+
                 if v["ok"]:
                     try:
-
+                        self._log(debug, "mcp.call.start", mcp=mcp, tool=tool, args=args)
                         data = self.call_mcp(mcp, tool, args, stream=False)
+                        self._log(debug, "mcp.call.ok")  # 상세 응답은 요약 단계에서 preview로 기록
 
+                        # 기존 로직: info만 사용
                         data = data["info"]
 
                         debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
+                        self._log(debug, "plan", mode="mcp", mcp=mcp, tool=tool)
 
-                        yield from self._summarize_with_data(user_input, data)
+                        # 어떤 MCP/툴/인자를 근거로 했는지 함께 전달
+                        yield from self._summarize_with_data(user_input, data, debug=debug, mcp=mcp, tool=tool, args=args)
+
+                        self._log(debug, "run.end", status="ok")
+                        debug["log"] = debug.get("events", [])   # ← 추가
                         return
                     except Exception as ex:
                         debug["execution"]["plan"] = {"mode": "direct", "reason": f"mcp_call_failed: {ex}"}
+                        self._log(debug, "mcp.call.error", error=str(ex))
                         yield "[MCP 호출 실패 → Direct로 전환]\n"
                 else:
                     debug["execution"]["plan"] = {"mode": "direct", "reason": "validation_failed"}
+                    self._log(debug, "plan", mode="direct", reason="validation_failed")
                     yield "[인자 검증 실패 → Direct로 전환]\n"
                     for e in v["errors"]:
                         yield f"- {e}\n"
             else:
                 debug["execution"]["plan"] = {"mode": "direct", "reason": decision.get("reason", "llm_decision_direct")}
+                self._log(debug, "plan", mode="direct", reason=decision.get("reason"))
         else:
-            debug.setdefault("execution", {})["plan"] = {"mode": "direct", "reason": "no_tools"}
+            debug["execution"]["plan"] = {"mode": "direct", "reason": "no_tools"}
+            self._log(debug, "plan", mode="direct", reason="no_tools")
 
-        # Direct
+        # Direct 경로
         yield from self._direct_stream(user_input, debug=debug)
+        self._log(debug, "run.end", status="ok")
+        debug["log"] = debug.get("events", [])   # ← 추가
