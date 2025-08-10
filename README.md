@@ -21,15 +21,12 @@
 │   │   │   ├── agent.py
 │   │   │   └── card.json
 │   │   ├── survey_agent
-│   │   │   ├── __pycache__
-│   │   │   │   └── agent.cpython-310.pyc
 │   │   │   ├── agent.py
 │   │   │   └── card.json
 │   │   └── utilities_agent
 │   │       ├── agent.py
 │   │       └── card.json
 │   ├── app.py
-│   ├── email.ipynb
 │   ├── run_client_server.sh
 │   └── tools
 │       ├── ad_minder
@@ -46,11 +43,7 @@
 │           ├── manifest.json
 │           ├── news.py
 │           └── run_news_server.sh
-├── langgraph_tutorial.ipynb
 ├── mcp_demo
-│   ├── __pycache__
-│   │   ├── news.cpython-310.pyc
-│   │   └── weather.cpython-310.pyc
 │   ├── app.py
 │   ├── client.py
 │   ├── news.py
@@ -58,12 +51,11 @@
 │   ├── run_news_server.sh
 │   ├── run_weather_surver.sh
 │   └── weather.py
-├── mcp_test.ipynb
 ├── meta
 │   └── overview.png
 ├── README.md
+├── langgraph_tutorial.ipynb
 ├── requirements.txt
-└── test.py
 ```
 
 ## Agent card.json
