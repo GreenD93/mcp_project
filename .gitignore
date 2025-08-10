@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 가상환경
+venv/
+.env/
+
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
+
+# 로그 파일
+*.log
+
+# 환경 변수 파일
+.env
+
+# 기타 빌드/배포 산출물
+build/
+dist/
+*.egg-info/
