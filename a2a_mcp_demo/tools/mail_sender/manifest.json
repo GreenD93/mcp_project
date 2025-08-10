@@ -1,0 +1,27 @@
+{
+  "server": "mail_sender",
+  "tools": [
+    {
+        "name": "send_mail_mapped",
+        "description": "수신인 이름과 제목/본문을 받아서 매핑된 이메일 주소로 메일을 전송합니다.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "수신인 이름 (매핑된 키)"
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "메일 제목"
+                },
+                "body": {
+                    "type": "string",
+                    "description": "메일 본문"
+                }
+            },
+            "required": ["name", "subject", "body"]
+        }
+    }
+  ]
+}
