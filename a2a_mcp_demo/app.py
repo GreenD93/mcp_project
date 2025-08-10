@@ -35,6 +35,7 @@ if "messages" not in st.session_state:
 # 사이드바: 에이전트 카드 탐색
 # -----------------------------
 with st.sidebar:
+
     st.header("🗂 등록된 Agents")
 
     discovered = client.discover()  # [{name, description, version, path}]
@@ -61,6 +62,11 @@ with st.sidebar:
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
+
+# 대화 초기화 버튼
+if st.button("🗑 대화 초기화", key="reset_chat", type="primary"):
+    st.session_state.messages = []
+    st.rerun()
 
 # -----------------------------
 # 입력 & 실행
