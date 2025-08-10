@@ -3,13 +3,13 @@
   "tools": [
     {
       "name": "get_news",
-      "description": "회사에 대한 뉴스 정보들과 보고서 내용을 요약해서 제공합니다.",
+      "description": "회사(신규 상장 포함) 관련 뉴스/보고서를 요약합니다.",
       "parameters": {
           "type": "object",
           "properties": {
               "company": {
                   "type": "string",
-                  "description": "회사 이름"
+                  "description": "사용자 질의에서 추출한 회사 이름"
               }
           },
           "required": ["company"]
