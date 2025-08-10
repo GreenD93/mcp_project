@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
   "name": "MarketingAgent",
-  "description": "캠페인 아이디어, 카피, 채널 믹스 제안 등 마케팅 관련 요청 담당",
+  "description": "마케팅 실적 조회, 캠페인 아이디어, 카피, 채널 믹스 제안 등 마케팅 관련 요청 담당",
   "version": "0.1.0",
   "capabilities": [
     {
       "name": "execute",
-      "description": "제품/타깃/톤을 입력받아 캠페인 아이디어를 생성",
+      "description": "배너ID를 입력받아 실적을 조회하거나 제품/타깃/톤을 입력받아 캠페인 아이디어를 생성",
       "parameters": {
         "type": "object",
         "properties": {
           "user_input": {
             "type": "string",
-            "description": "마케팅 관련 요청 문장"
+            "description": "마케팅 실적 조회 및 기획안과 관련한 도움 요청 문장"
           }
         },
         "required": ["user_input"]
@@ -20,6 +20,7 @@
     }
   ],
   "metadata": {
-    "keywords": ["marketing", "캠페인", "카피", "브랜딩", "채널"]
+    "keywords": ["marketing", "캠페인", "카피", "브랜딩", "채널"],
+    "tools": ["ad_miner"]
   }
 }

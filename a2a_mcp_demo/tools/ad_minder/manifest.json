@@ -1,0 +1,18 @@
+{
+  "server": "ad_miner",
+  "tools": [
+    {
+        "name": "performance",
+        "description": "배너 번호와 기간(시작/종료)을 입력받아 해당 배너의 실적(노출/클릭/CTR)을 반환합니다.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "bnnr_id": {"type": "integer", "description": "배너 번호"},
+                "start_date": {"type": "string", "description": "조회 시작일 (YYYY-MM-DD)"},
+                "end_date": {"type": "string", "description": "조회 종료일 (YYYY-MM-DD)"}
+            },
+            "required": ["bnnr_id", "start_date", "end_date"]
+        }
+    }
+  ]
+}

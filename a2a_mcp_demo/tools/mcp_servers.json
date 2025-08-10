@@ -1,3 +1,4 @@
 {
-  "news": "http://localhost:8001"
+  "news": "http://localhost:8001",
+  "ad_miner": "http://localhost:8002"
 }
