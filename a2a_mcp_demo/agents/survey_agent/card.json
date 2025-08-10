@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "name": "SurveyAnalysisAgent",
+  "description": "설문/리뷰/피드백 텍스트에서 핵심 인사이트와 액션 아이템을 도출",
+  "version": "0.1.0",
+  "capabilities": [
+    {
+      "name": "freeformSurvey",
+      "description": "설문 요약/테마 추출/감성 분석/액션 아이템 도출",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_input": { "type": "string", "description": "설문 관련 요청 또는 응답 텍스트 요약 지시" }
+        },
+        "required": ["user_input"]
+      }
+    }
+  ],
+  "metadata": {
+    "keywords": ["설문", "survey", "응답", "리서치", "분석", "insight"]
+  }
+}

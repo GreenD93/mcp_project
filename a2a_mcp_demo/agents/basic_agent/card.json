@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "name": "DirectAnswerAgent",
+  "description": "일반 질문에 직접 답변하는 기본 에이전트",
+  "version": "0.1.0",
+  "capabilities": [
+    {
+      "name": "freeform",
+      "description": "LLM을 사용해 자유 질문에 답변",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_input": {
+            "type": "string",
+            "description": "사용자가 입력한 질문 또는 요청"
+          }
+        },
+        "required": ["user_input"]
+      }
+    }
+  ],
+  "metadata": {
+    "keywords": ["direct", "fallback", "chat"]
+  }
+}
