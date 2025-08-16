@@ -150,56 +150,6 @@ def build_payload(bnnr_id: int, start_date: str, end_date: str):
         "message": None,
     }
 
-    # 데이터 필터링
-    subset = df[(df["bnnr_id"] == bnnr_id) & (df["base_dt"].between(start, end))].copy()
-    subset.sort_values("base_dt", inplace=True)
-
-    if subset.empty:
-        return {
-            "bnnr_id": bnnr_id,
-            "start_date": start_date,
-            "end_date": end_date,
-            "records": [],
-            "summary": None,
-            "message": "해당 조건에 맞는 실적 데이터가 없습니다.",
-        }
-
-    # 상세 레코드 리스트 (문자열 날짜로 변환하여 반환)
-    records = [
-        {
-            "bnnr_id": int(row.bnnr_id),
-            "base_dt": row.base_dt.strftime("%Y-%m-%d"),
-            "impression_cnt": int(row.impression_cnt),
-            "click_cnt": int(row.click_cnt),
-            "ctr": round((row.click_cnt / row.impression_cnt) if row.impression_cnt else 0.0, 6),
-        }
-        for _, row in subset.iterrows()
-    ]
-
-    # 합계/요약
-    total_impr = int(subset["impression_cnt"].sum())
-    total_click = int(subset["click_cnt"].sum())
-    ctr = (total_click / total_impr) if total_impr else 0.0
-
-    summary = {
-        "total_impression": total_impr,
-        "total_click": total_click,
-        "ctr": round(ctr, 6),
-        "days": len(subset),
-        "date_range": {
-            "start": start.strftime("%Y-%m-%d"),
-            "end": end.strftime("%Y-%m-%d"),
-        },
-    }
-
-    return {
-        "bnnr_id": bnnr_id,
-        "start_date": start_date,
-        "end_date": end_date,
-        "records": records,
-        "summary": summary,
-        "message": None,
-    }
 
 # ---------------------------------------------
 # 엔드포인트

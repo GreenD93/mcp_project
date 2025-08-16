@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "name": "TransactionAgent",
+  "description": "사용자의 거래 내역을 조회하여 이를 바탕으로 지출, 소비 습관에 대한 피드백을 주는 Agent 입니다.",
+  "version": "0.1.0",
+  "capabilities": [
+    {
+      "name": "execute",
+      "description": "지출, 소비 내역등에 대한 피드백을 사용자의 거래 내역을 바탕으로 처리합니다.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_input": { "type": "string", "description": "사용자의 지출, 소비 습관에 사용자의 거래관련 요청에 따라 적잘한 응답 수행" }
+        },
+        "required": ["user_input"]
+      }
+    }
+  ],
+  "metadata": {
+    "keywords": ["거래내역", "소비", "지출", "피드백"],
+    "tools": ["transaction"]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "server": "transaction",
+  "tools": [
+      {
+          "name": "transactions",
+          "description": "고객 이름만 입력하면 해당 고객의 모든 거래 레코드를 표 형식으로 반환합니다.",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "name": {"type": "string", "description": "고객 이름 (정확 매칭, 필수)"}
+              },
+              "required": ["name"]
+          }
+      },
+      {
+          "name": "transactions_by_category",
+          "description": "고객 이름과 카테고리(대분류)로만 거래를 필터링해 표 형식으로 반환합니다.",
+          "parameters": {
+              "type": "object",
+              "properties": {
+                  "name": {"type": "string", "description": "고객 이름 (정확 매칭, 필수)"},
+                  "category_major": {"type": "string", "description": "카테고리(대분류, 필수)"}
+              },
+              "required": ["name", "category_major"]
+          }
+      }
+  ]
+}
