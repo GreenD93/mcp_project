@@ -1,0 +1,30 @@
+{
+  "server": "transfer",
+  "tools": [
+    {
+        "name": "transfer",
+        "description": "고정된 기본 입출금통장에서 받는사람/금액/이체내용을 입력받아 송금합니다.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "recipient": {"type": "string", "description": "받는 사람"},
+                "amount": {"type": "integer", "description": "이체 금액(원 단위)"},
+                "transfer_desc": {"type": "string", "description": "이체 내용"}
+            },
+            "required": ["recipient", "amount", "transfer_desc"]
+        }
+    },
+    {
+        "name": "deposit_product",
+        "description": "고정된 기본 입출금통장에서 예/적금(코드K정기예금, 코드K정기적금, 플러스박스, 궁금한적금) 상품으로 입금합니다.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "product_name": {"type": "string", "description": "예/적금 상품명"},
+                "amount": {"type": "integer", "description": "입금 금액(원 단위)"}
+            },
+            "required": ["product_name", "amount"]
+        }
+    }
+  ]
+}

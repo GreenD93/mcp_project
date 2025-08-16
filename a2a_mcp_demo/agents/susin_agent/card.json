@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "name": "SusinAgent",
+  "description": "사용자의 입출금 거래 이체 명령 등을 수행하는 Agent입니다.",
+  "version": "0.1.0",
+  "capabilities": [
+    {
+      "name": "execute",
+      "description": "사용자의 요청을 받아서 거래 이체 또는 예/적금 상품(코드K정기예금, 코드K정기적금, 플러스박스, 궁금한적금)으로 입금 등을 수행합니다.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "user_input": { "type": "string", "description": "특정인한테 이체, 예/적금 상품(코드K정기예금, 코드K정기적금, 플러스박스, 궁금한적금) 이체 명령"}
+        },
+        "required": ["user_input"]
+      }
+    }
+  ],
+  "metadata": {
+    "keywords": ["입금", "적금", "예금", "이체"],
+    "tools": ["transfer"]
+  }
+}

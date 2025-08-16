@@ -1,5 +1,6 @@
 {
   "transaction": "http://localhost:8001",
   "ad_miner": "http://localhost:8002",
-  "mail_sender": "http://127.0.0.1:8003"
+  "mail_sender": "http://127.0.0.1:8003",
+  "transfer": "http://127.0.0.1:8004"
 }
