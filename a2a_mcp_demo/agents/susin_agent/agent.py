@@ -65,7 +65,7 @@ class Agent(MCPAgentBase):
                 tool = decision["tool_name"]
                 args = decision.get("arguments", {})
                 
-                debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
+                debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool, "args": args}
 
                 v = self.validate_args(mcp, tool, args)
 
