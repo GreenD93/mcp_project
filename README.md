@@ -2,7 +2,7 @@
 # 프로젝트 설명
 
 이 프로젝트는 a2a_mcp 구현과 mcp_demo 구현 예제를 포함합니다. 
-- `a2a_mcp_demo`: 다양한 에이전트(basic, marketing, stock, survey)와 툴(ad_minder, news)을 포함한 MCP 클라이언트/서버 구현
+- `a2a_mcp_demo`: 다양한 에이전트(basic, marketing, susin, transaction, utilities, survey)와 툴(ad_minder, mail_sender, transaciton, transfer)을 포함한 MCP 클라이언트/서버 구현
 - `mcp_demo`: 뉴스/날씨 서버와 클라이언트를 포함한 간단한 MCP 데모
 
 ## 프로젝트 구조
