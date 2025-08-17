@@ -8,27 +8,34 @@
 ## 프로젝트 구조
 
 ├── a2a_mcp_demo
-│   ├── a2a_client.py
+│   ├── assets
+│   │   └── navy_left.png
 │   ├── agents
 │   │   ├── agent_base.py
 │   │   ├── basic_agent
 │   │   │   ├── agent.py
 │   │   │   └── card.json
-│   │   ├── marketing
-│   │   │   ├── agent.py
-│   │   │   └── card.json
-│   │   ├── stock_agent
+│   │   ├── marketing_agent
 │   │   │   ├── agent.py
 │   │   │   └── card.json
 │   │   ├── survey_agent
 │   │   │   ├── agent.py
 │   │   │   └── card.json
+│   │   ├── susin_agent
+│   │   │   ├── agent.py
+│   │   │   └── card.json
+│   │   ├── transaction_agent
+│   │   │   ├── agent.py
+│   │   │   └── card.json
 │   │   └── utilities_agent
 │   │       ├── agent.py
 │   │       └── card.json
-│   ├── app.py
-│   ├── run_client_server.sh
+│   ├── components
+│   │   ├── banner.py
+│   │   ├── signals.py
+│   │   └── susin_modal.py
 │   └── tools
+│       ├── mcp_servers.json
 │       ├── ad_minder
 │       │   ├── ad_minder.py
 │       │   ├── manifest.json
@@ -38,11 +45,17 @@
 │       │   ├── mail_sender.py
 │       │   ├── manifest.json
 │       │   └── run_mail_sender_server.sh
-│       ├── mcp_servers.json
-│       └── news
+│       ├── transaction
+│       │   ├── manifest.json
+│       │   ├── run_transaction_server.sh
+│       │   └── transaction.py
+│       └── transfer
 │           ├── manifest.json
-│           ├── news.py
-│           └── run_news_server.sh
+│           ├── run_transfer_server.sh
+│           └── transfer.py
+│   ├── a2a_client.py
+│   ├── app.py
+│   ├── run_client_server.sh
 ├── mcp_demo
 │   ├── app.py
 │   ├── client.py
@@ -88,7 +101,7 @@
 ## menifest.json (MCP-tool)
 ```json
 {
-  "server": "ad_miner",
+  "server": "ad_minder",
   "tools": [
     {
         "name": "performance",
@@ -106,14 +119,16 @@
   ]
 }
 
+
 ```
 
 ## 실행 방법
 ```bash
 sh a2a_mcp_demo/run_client_server.sh # client(Chatbot)
-sh a2a_mcp_demo/tools/news/run_ad_minder_server.sh # 마케팅 배너 실적 조회 Tool
-sh a2a_mcp_demo/tools/ad_miner/run_news_server.sh # 뉴스종목 검색 Tool
-sh a2a_mcp_demo/tools/ad_miner/run_mail_sender_server.sh # 메일 전송 Tool
+sh a2a_mcp_demo/tools/ad_minder/run_ad_minder_server.sh # 마케팅 배너 실적 조회 Tool
+sh a2a_mcp_demo/tools/mail_sender/run_mail_sender_server.sh # 메일 발송 Tool
+sh a2a_mcp_demo/tools/transaction/run_transaction_server.sh # 거래내역 조회 Tool
+sh a2a_mcp_demo/tools/transfer/run_transfer_server.sh # 수신 이체 거래 Tool
 ```
 
 ## 시스템 개요
