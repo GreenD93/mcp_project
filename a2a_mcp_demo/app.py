@@ -7,8 +7,9 @@ from types import GeneratorType
 
 from a2a_client import A2AClient
 
-from susin_modal import open_susin_modal
-from signals import consume_signal
+from components.banner import render_banner
+from components.susin_modal import open_susin_modal
+from components.signals import consume_signal
 
 st.set_page_config(page_title="A2A → Agent → MCP Demo", layout="wide")
 st.title("🤖 A2A → Agent → MCP 데모")
@@ -22,6 +23,9 @@ OPENAI_API_KEY = ""
 if not OPENAI_API_KEY:
     st.warning("OPENAI_API_KEY가 설정되지 않았습니다. app.py를 확인해주세요.")
 
+# -------------------------------------
+# 세션 초기화
+# -------------------------------------
 if "llm" not in st.session_state:
     st.session_state.llm = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -31,11 +35,19 @@ if "client" not in st.session_state:
 client: A2AClient = st.session_state.client
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []  # [{"role":"user"/"assistant","content": "..."}]
+    st.session_state.messages = [
+        {"role": "assistant", "content": "안녕하세요! 무엇을 도와드릴까요?"}
+    ]
 
-# -----------------------------
-# (전역) 수신 신호 소비: 토스트 + 채팅 메시지 추가
-# -----------------------------
+# 배너 컨텍스트 + 버튼 키 충돌 방지용 일련번호
+if "banner_ctx" not in st.session_state:
+    st.session_state.banner_ctx = {}
+if "banner_seq" not in st.session_state:
+    st.session_state.banner_seq = 0
+
+# -------------------------------------
+# (전역) 수신 신호 소비: 토스트 + 배너 메시지 히스토리 삽입
+# -------------------------------------
 sig = consume_signal()
 if sig:
     status = sig["status"]
@@ -43,26 +55,35 @@ if sig:
     msg = payload.get("message", "")
     chat_text = payload.get("chat", msg)  # chat 없으면 message 사용
 
-    # ✅ 이 렌더 사이클에선 debug pop을 잠시 보류 (모달 클릭 직후에도 디버그 보여주기)
+    # ✅ 모달 클릭 직후에도 디버그를 보여주기 위해 일시 보류 플래그
     st.session_state["_suspend_debug_pop"] = True
 
     # 메인 토스트
     if status == "success":
         st.toast(f"✅ {msg}")
+        # Susin 성공 → 배너 필요 시 컨텍스트 저장 + 히스토리에 배너 타입 메시지 삽입
+        st.session_state.banner_ctx = payload
+        st.session_state.banner_seq += 1
+        st.session_state.messages.append({
+            "role": "assistant",
+            "type": "banner",           # 👈 렌더 루프에서 배너로 인식
+            "seq": st.session_state.banner_seq
+        })
+
     elif status == "error":
         st.toast(f"❌ {msg}")
+        if chat_text:
+            st.session_state.messages.append({"role": "assistant", "content": chat_text})
+
     elif status == "cancel":
         st.toast(f"⚪ {msg}")
+        if chat_text:
+            st.session_state.messages.append({"role": "assistant", "content": chat_text})
 
-    # 채팅에 시스템(assistant) 메시지 추가
-    if chat_text:
-        st.session_state.messages.append({"role": "assistant", "content": chat_text})
-
-# -----------------------------
+# -------------------------------------
 # 사이드바: 에이전트 카드 탐색
-# -----------------------------
+# -------------------------------------
 with st.sidebar:
-
     st.header("🗂 등록된 Agents")
 
     discovered = client.discover()  # [{name, description, version, path}]
@@ -83,26 +104,34 @@ with st.sidebar:
         st.markdown("**선택된 Agent:** " + selected)
         st.code(json.dumps(card_json, ensure_ascii=False, indent=2), language="json")
 
-# -----------------------------
+# -------------------------------------
 # 메세지 히스토리 렌더링
-# -----------------------------
+# -------------------------------------
 
 # 대화 초기화 버튼
 if st.button("🗑 대화 초기화", key="reset_chat", type="primary"):
     st.session_state.messages = []
-    st.session_state.pop("debug_to_render", None)   # 임시 디버그 제거
-    st.session_state.pop("last_debug", None)        # 백업 디버그 제거
-    st.session_state.pop("last_agent_name", None)   # 라우팅 캡션 제거
+    st.session_state.pop("debug_to_render", None)
+    st.session_state.pop("last_debug", None)
+    st.session_state.pop("last_agent_name", None)
     st.session_state.pop("_suspend_debug_pop", None)
+    st.session_state.pop("banner_ctx", None)
+    st.session_state.pop("banner_seq", None)
     st.rerun()
 
+# 히스토리 렌더링 (배너 타입 메시지면, chat_message 안에서 render_banner 호출)
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+        if m.get("type") == "banner":
+            # ✅ 이미 열린 chat_message 컨텍스트 안에서 배너 UI만 그린다
+            seq = m.get("seq", 0)
+            render_banner(seq=seq)
+        else:
+            st.markdown(m.get("content", ""))
 
-# -----------------------------
+# -------------------------------------
 # 입력 & 실행
-# -----------------------------
+# -------------------------------------
 user_input = st.chat_input("무엇을 도와드릴까요?")
 if user_input:
     # 사용자 메시지 추가
@@ -115,6 +144,9 @@ if user_input:
     agent_name = resp.get("agent_name")
     result = resp.get("result")
     debug = resp.get("debug", {})
+
+    # 🧭 라우팅 캡션
+    st.caption(f"🧭 라우팅된 Agent: **{agent_name}**")
 
     # ✅ 모달 rerun 전에 세션 저장 (SusinAgent 클릭 직후에도 보여주기 위함)
     st.session_state["last_agent_name"] = agent_name
@@ -154,14 +186,9 @@ if user_input:
 
         st.session_state.messages.append({"role": "assistant", "content": full})
 
-# -----------------------------
-# 🧭 라우팅 캡션 + 🛠️ 디버그 + 🧾 로그 (채팅 '아래'에서 렌더)
-# -----------------------------
-# 라우팅 캡션: SusinAgent라도 항상 표시
-_last_agent = st.session_state.get("last_agent_name")
-if _last_agent:
-    st.caption(f"🧭 라우팅된 Agent: **{_last_agent}**")
-
+# -------------------------------------
+# 🛠️ 디버그 + 🧾 로그 (채팅 '아래'에서 렌더)
+# -------------------------------------
 # 모달 신호 직후엔 pop을 보류해서(또는 last_debug로) 한 번 더 보여줌
 _suspend = st.session_state.pop("_suspend_debug_pop", False)
 

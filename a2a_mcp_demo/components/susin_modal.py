@@ -1,7 +1,8 @@
 # susin_modal.py
 import requests
 import streamlit as st
-from signals import emit_signal
+
+from components.signals import emit_signal
 
 API_BASE = "http://localhost:8004"
 TIMEOUT = 8
@@ -57,12 +58,12 @@ def open_susin_modal(payload: dict):
     @st.dialog(title)
     def _modal():
         if tool == "transfer":
-            st.text_input("받는 사람", value=str(args.get("recipient", "")), disabled=True)
-            st.number_input("금액", value=float(args.get("amount", 0)), step=1.0, disabled=True)
-            st.text_area("이체 내용", value=str(args.get("transfer_desc", "")), disabled=True, height=80)
+            st.text_input("받는 사람", value=str(args.get("recipient", "")))
+            st.number_input("금액", value=int(args.get("amount", 0)), step=1)
+            st.text_area("이체 내용", value=str(args.get("transfer_desc", "")), height=80)
         elif tool == "deposit_product":
-            st.text_input("상품 이름", value=str(args.get("product_name", "")), disabled=True)
-            st.number_input("금액", value=float(args.get("amount", 0)), step=1.0, disabled=True)
+            st.text_input("상품 이름", value=str(args.get("product_name", "")))
+            st.number_input("금액", value=int(args.get("amount", 0)), step=1)
         else:
             st.error("지원되지 않는 tool_name 입니다.")
             if st.button("닫기", use_container_width=True):
