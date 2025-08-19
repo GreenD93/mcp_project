@@ -210,12 +210,15 @@ else:
     _debug = st.session_state.pop("debug_to_render", None)
 
 if _debug:
+    
     ex = _debug.get("execution", {})
 
     with st.expander("🛠️ Agent 실행 디버그 (툴 선택/Direct)", expanded=False):
-        if "prompt" in _debug:
+        
+        if "prompt" in _debug:  # A2A → LLM 라우팅 프롬프트
             st.markdown("**라우팅 프롬프트 (A2A → LLM)**")
             st.code(_debug["prompt"], language="markdown")
+
         if "decision" in _debug:
             st.markdown("**라우팅 결과 (LLM JSON)**")
             st.code(json.dumps(_debug["decision"], ensure_ascii=False, indent=2), language="json")
@@ -224,10 +227,8 @@ if _debug:
             st.markdown("**Tool 선택 프롬프트**")
             st.code(ex["tool_selection_prompt"], language="markdown")
 
-        if "decision" in ex:
+        if "decision" in ex: # agent
             dec = ex["decision"]
-            if isinstance(dec, dict) and "reason" in dec:
-                st.markdown(f"**선택 사유(reason):** {dec['reason']}")
             st.markdown("**Tool 선택 결과 (LLM JSON)**")
             st.code(json.dumps(dec, ensure_ascii=False, indent=2), language="json")
 
@@ -238,7 +239,7 @@ if _debug:
         if "direct" in ex and "prompt" in ex["direct"]:
             st.markdown("**Direct 프롬프트 (미리보기)**")
             st.code(ex["direct"]["prompt"], language="markdown")
-
+            
         plan = ex.get("plan")
         if plan:
             st.markdown("**실행 전략(plan)**")
