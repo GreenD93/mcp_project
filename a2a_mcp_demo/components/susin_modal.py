@@ -58,12 +58,25 @@ def open_susin_modal(payload: dict):
     @st.dialog(title)
     def _modal():
         if tool == "transfer":
-            st.text_input("받는 사람", value=str(args.get("recipient", "")))
-            st.number_input("금액", value=int(args.get("amount", 0)), step=1)
-            st.text_area("이체 내용", value=str(args.get("transfer_desc", "")), height=80)
+            recipient = st.text_input("받는 사람", value=str(args.get("recipient", "")), key="susin_recipient")
+            amount = st.number_input("금액", value=int(args.get("amount", 0)), step=1, key="susin_amount")
+            transfer_desc = st.text_area("이체 내용", value=str(args.get("transfer_desc", "")), height=80, key="susin_transfer_desc")
+
+            args_to_send = {
+                "recipient": recipient.strip(),
+                "amount": int(amount),
+                "transfer_desc": transfer_desc.strip(),
+            }
+
         elif tool == "deposit_product":
-            st.text_input("상품 이름", value=str(args.get("product_name", "")))
-            st.number_input("금액", value=int(args.get("amount", 0)), step=1)
+            product_name = st.text_input("상품 이름", value=str(args.get("product_name", "")), key="susin_product_name")
+            amount = st.number_input("금액", value=int(args.get("amount", 0)), step=1, key="susin_deposit_amount")
+
+            args_to_send = {
+                "product_name": product_name.strip(),
+                "amount": int(amount),
+            }
+
         else:
             st.error("지원되지 않는 tool_name 입니다.")
             if st.button("닫기", use_container_width=True):
@@ -74,25 +87,26 @@ def open_susin_modal(payload: dict):
         with c1:
             if st.button("실행", type="primary", use_container_width=True, key="susin_run"):
                 with st.spinner("처리 중..."):
-                    result = call_backend_api(tool, args)
+                    result = call_backend_api(tool, args_to_send)
 
                 if result.get("ok"):
                     data = result.get("data", {})
                     msg = data.get("message", "요청이 성공했습니다.")
                     emit_signal("success", {
                         "message": msg,
-                        "chat": _make_chat(tool, args, msg, ok=True),   # ← 선택: 채팅용 텍스트
-                        "tool": tool, "args": args
+                        "chat": _make_chat(tool, args_to_send, msg, ok=True),
+                        "tool": tool, "args": args_to_send
                     })
                     st.rerun()
                 else:
                     msg = result.get("error", "요청에 실패했습니다.")
                     emit_signal("error", {
                         "message": msg,
-                        "chat": _make_chat(tool, args, msg, ok=False),
-                        "tool": tool, "args": args
+                        "chat": _make_chat(tool, args_to_send, msg, ok=False),
+                        "tool": tool, "args": args_to_send
                     })
                     st.rerun()
+
         with c2:
             if st.button("취소", type="secondary", use_container_width=True, key="susin_cancel"):
                 emit_signal("cancel", {
