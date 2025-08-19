@@ -155,11 +155,21 @@ if user_input:
 
     # SusinAgent면: 모달만 열고, 이 자리에서는 결과를 채팅에 출력하지 않음
     handled_by_modal = (agent_name == "SusinAgent")
+    
     if handled_by_modal:
         if isinstance(result, dict) and "tool_name" in result:
             open_susin_modal(result)  # 내부에서 emit_signal → st.rerun()
+
         else:
-            st.error("SusinAgent 결과 형식이 올바르지 않습니다. (dict('tool_name', 'arguments'))")
+            reason = result['reason']
+            result = client._direct_stream(user_input, reason)
+
+            ph = st.empty()
+            full = ""
+            for tok in result:
+                full += tok
+                ph.markdown(full)
+
     else:
         # 일반 Agent: 기존처럼 결과 렌더
         with st.chat_message("assistant"):
