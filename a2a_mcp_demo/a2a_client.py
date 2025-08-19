@@ -85,13 +85,12 @@ class A2AClient:
 {json.dumps(brief_cards, ensure_ascii=False, indent=2)}
 
 당신의 임무는 이 요청을 가장 잘 처리할 Agent를 '정확한 이름으로 1개' 선택하는 것입니다.
-적절한 Agent가 없다면 DIRECT를 선택하세요.
 
 반드시 아래 JSON 형식으로만 답변하세요(코드블록 금지):
 {{
-  "route": "AGENT" | "DIRECT",
+  "route": "AGENT",
   "agent_name": "<선택한 Agent name>",
-  "reason": "간단한 이유"
+  "reason": "이 Agent를 선택한 이유"
 }}
 """
         res = self.llm.chat.completions.create(

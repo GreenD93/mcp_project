@@ -54,10 +54,13 @@ class Agent(MCPAgentBase):
         has_tools = any(self.registry.values())
 
         if has_tools:
-
-
             tool_prompt = self.build_tool_selection_prompt(user_input)
+            self._log(debug, "tool.prompt.ready")
+            debug["execution"]["tool_selection_prompt"] = tool_prompt
+
             decision = self.ask_gpt_for_tool(user_input, prompt_override=tool_prompt)
+            self._log(debug, "tool.decision", decision=decision)
+            debug["execution"]["decision"] = decision
 
             if decision.get("route") == "TOOL":
 
