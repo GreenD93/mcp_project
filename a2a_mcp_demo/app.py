@@ -220,11 +220,6 @@ if _debug:
             st.markdown("**라우팅 결과 (LLM JSON)**")
             st.code(json.dumps(_debug["decision"], ensure_ascii=False, indent=2), language="json")
 
-        plan = ex.get("plan")
-        if plan:
-            st.markdown("**실행 전략(plan)**")
-            st.code(json.dumps(plan, ensure_ascii=False, indent=2), language="json")
-
         if "tool_selection_prompt" in ex:
             st.markdown("**Tool 선택 프롬프트**")
             st.code(ex["tool_selection_prompt"], language="markdown")
@@ -243,6 +238,12 @@ if _debug:
         if "direct" in ex and "prompt" in ex["direct"]:
             st.markdown("**Direct 프롬프트 (미리보기)**")
             st.code(ex["direct"]["prompt"], language="markdown")
+
+        plan = ex.get("plan")
+        if plan:
+            st.markdown("**실행 전략(plan)**")
+            st.code(json.dumps(plan, ensure_ascii=False, indent=2), language="json")
+
 
     with st.expander("🧾 실행 로그 (모든 이벤트)", expanded=False):
         run_log = _debug.get("log", [])
