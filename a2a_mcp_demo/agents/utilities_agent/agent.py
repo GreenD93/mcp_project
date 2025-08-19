@@ -94,37 +94,6 @@ class Agent(MCPAgentBase):
                 yield ch.choices[0].delta.content
         self._log(debug, "summarize.end")
 
-    # ---- 도구 사용 경로 실패: plan.reason으로 친절 안내 ----
-    def _explain_failure_from_plan(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
-        ex = (debug or {}).get("execution", {}) or {}
-        plan = ex.get("plan") or {}
-        reason = plan.get("reason") or "처리 중 문제가 발생했습니다."
-
-        self._log(debug, "failure.explain.start", reason=reason)
-
-        system_msg = (
-            self.init_system
-            + " 실패 사유를 2~4문장으로 공손하고 간단히 설명해. "
-              "아래 '이유' 문장을 그대로 포함하고, 체크리스트나 과도한 지시는 넣지 마. "
-              "가능하면 요청을 다시 시도할 때 도움이 될 짧은 한 문장을 덧붙여도 좋아(선택)."
-        )
-        user_msg = (
-            "아래 정보를 바탕으로, MCP 도구 실행을 시도했지만 완료되지 않았음을 정중히 알리는 메시지를 작성해줘. "
-            "핵심은 '이유' 문장을 그대로 포함하는 거야.\n\n"
-            f"[사용자 요청]\n{user_input}\n\n[이유]\n{reason}"
-        )
-
-        resp = self.llm.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
-            stream=True,
-        )
-        for ch in resp:
-            if getattr(ch.choices[0].delta, "content", None):
-                yield ch.choices[0].delta.content
-
-        self._log(debug, "failure.explain.end")
-
     # ---- 실행 엔트리포인트 ----
     def execute(self, user_input: str, debug: Optional[Dict[str, Any]] = None):
         if debug is None:
@@ -132,78 +101,73 @@ class Agent(MCPAgentBase):
         self._log(debug, "run.start", user_input=user_input)
 
         has_tools = any(self.registry.values())
-        exec_ctx = debug.setdefault("execution", {})
-        exec_ctx["plan"] = {"mode": None}
+        debug.setdefault("execution", {})["plan"] = {"mode": None}
         self._log(debug, "registry", has_tools=has_tools, servers=list(self.registry.keys()))
 
-        # 1) MCP 서버 없음 → 공손 양해
-        if not has_tools:
-            exec_ctx["plan"] = {"mode": "direct", "reason": "사용 가능한 도구가 없습니다."}
-            for ch in self._direct_stream(user_input, debug=debug):
-                yield ch
-            self._log(debug, "run.end", status="failed:no_tools")
-            debug["log"] = debug.get("events", [])
-            return
+        if has_tools:
+            tool_prompt = self.build_tool_selection_prompt(user_input)
+            self._log(debug, "tool.prompt.ready")
+            debug["execution"]["tool_selection_prompt"] = tool_prompt
 
-        # 2) 도구 선택
-        tool_prompt = self.build_tool_selection_prompt(user_input)
-        exec_ctx["tool_selection_prompt"] = tool_prompt
-        decision = self.ask_gpt_for_tool(user_input, prompt_override=tool_prompt)
-        exec_ctx["decision"] = decision
+            decision = self.ask_gpt_for_tool(user_input, prompt_override=tool_prompt)
+            self._log(debug, "tool.decision", decision=decision)
+            debug["execution"]["decision"] = decision
 
-        # 2-1) 도구 미선택 → 공손 양해
-        if decision.get("route") != "TOOL":
-            exec_ctx["plan"] = {"mode": "direct", "reason": decision.get("reason", "적합한 도구를 선택하지 않았습니다.")}
-            for ch in self._direct_stream(user_input, debug=debug):
-                yield ch
-            self._log(debug, "run.end", status="failed:tool_not_selected")
-            debug["log"] = debug.get("events", [])
-            return
+            if decision.get("route") == "TOOL":
+                mcp = decision["mcp"]
+                tool = decision["tool_name"]
+                args = decision.get("arguments", {})
 
-        # 3) 인자 검증
-        mcp = decision.get("mcp")
-        tool = decision.get("tool_name")
-        args = decision.get("arguments", {}) or {}
+                v = self.validate_args(mcp, tool, args)
+                debug["execution"]["validation"] = v
+                self._log(debug, "tool.validation", ok=v["ok"], errors=v["errors"], warnings=v["warnings"])
 
-        v = self.validate_args(mcp, tool, args)
-        exec_ctx["validation"] = v
-        if not v.get("ok"):
-            # 도구 사용 경로 진입했으나 실패 → plan.reason으로 안내
-            exec_ctx["plan"] = {
-                "mode": "direct",
-                "reason": decision.get("reason", "요청 인자 검증에 실패하여 호출하지 못했습니다."),
-                "mcp": mcp,
-                "tool": tool,
-            }
-            for ch in self._explain_failure_from_plan(user_input, debug=debug):
-                yield ch
-            self._log(debug, "run.end", status="failed:validation")
-            debug["log"] = debug.get("events", [])
-            return
+                if v["ok"]:
+                    try:
+                        self._log(debug, "mcp.call.start", mcp=mcp, tool=tool, args=args)
+                        data = self.call_mcp(mcp, tool, args, stream=False)
+                        self._log(debug, "mcp.call.ok")  # 상세 데이터는 summarize 단계에서 preview만 기록
 
-        # 4) 도구 호출
-        try:
-            self._log(debug, "mcp.call.start", mcp=mcp, tool=tool, args=args)
-            data = self.call_mcp(mcp, tool, args, stream=False)
-            self._log(debug, "mcp.call.ok")
+                        debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
+                        self._log(debug, "plan", mode="mcp", mcp=mcp, tool=tool)
 
-            exec_ctx["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
+                        yield from self._summarize_tool_execution(
+                            user_input, data, debug=debug, mcp=mcp, tool=tool, args=args
+                        )
+                        self._log(debug, "run.end", status="ok")
+                        debug["log"] = debug.get("events", [])
+                        return
+                    
+                    except Exception as ex:
+                        debug["execution"]["plan"] = {"mode": "direct", "reason": f"mcp_call_failed: {ex}"}
+                        self._log(debug, "mcp.call.error", error=str(ex))
+                        yield from self._incomplete_stream(user_input, ex)
 
-            # 범용 요약
-            for ch in self._summarize_tool_execution(
-                user_input, data, debug=debug, mcp=mcp, tool=tool, args=args
-            ):
-                yield ch
+                else:
+                    debug["execution"]["plan"] = {"mode": "direct", "reason": "validation_failed"}
+                    self._log(debug, "plan", mode="direct", reason="validation_failed")
+                    yield "[인자 검증 실패 → Direct로 전환]\n"
+                    for e in v["errors"]:
+                        yield f"- {e}\n"
+            
+            elif decision.get("route") == "TOOL_INCOMPLETE":
 
-            self._log(debug, "run.end", status="ok")
-            debug["log"] = debug.get("events", [])
-            return
+                reason = decision["reason"]
+                debug["execution"]["plan"] = {"mode": "incomplete", "reason": decision.get("reason", reason)}
+                self._log(debug, "plan", mode="incomplete", reason=decision.get("reason"))
 
-        except Exception as ex:
-            exec_ctx["plan"] = {"mode": "direct", "reason": f"MCP 도구 호출 중 오류가 발생했습니다: {ex}", "mcp": mcp, "tool": tool}
-            self._log(debug, "mcp.call.error", error=str(ex))
-            for ch in self._explain_failure_from_plan(user_input, debug=debug):
-                yield ch
-            self._log(debug, "run.end", status="failed:mcp_call")
-            debug["log"] = debug.get("events", [])
-            return
+                yield from self._incomplete_stream(user_input, reason)
+
+            else:
+                debug["execution"]["plan"] = {"mode": "direct", "reason": decision.get("reason", "llm_decision_direct")}
+                self._log(debug, "plan", mode="direct", reason=decision.get("reason"))
+
+                yield from self._direct_stream(user_input, debug=debug)
+                
+        else:
+            yield from self._direct_stream(user_input, debug=debug)
+            debug["execution"]["plan"] = {"mode": "direct", "reason": "no_tools"}
+            self._log(debug, "plan", mode="direct", reason="no_tools")
+
+        self._log(debug, "run.end", status="ok")
+        debug["log"] = debug.get("events", [])   # ← 추가

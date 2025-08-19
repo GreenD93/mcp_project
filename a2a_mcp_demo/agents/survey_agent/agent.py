@@ -116,42 +116,48 @@ class Agent(MCPAgentBase):
                     try:
                         self._log(debug, "mcp.call.start", mcp=mcp, tool=tool, args=args)
                         data = self.call_mcp(mcp, tool, args, stream=False)
-                        self._log(debug, "mcp.call.ok")  # 상세 데이터는 summarize 단계에서 프리뷰만 기록
+                        self._log(debug, "mcp.call.ok")  # 상세 데이터는 summarize 단계에서 preview만 기록
 
                         debug["execution"]["plan"] = {"mode": "mcp", "mcp": mcp, "tool": tool}
                         self._log(debug, "plan", mode="mcp", mcp=mcp, tool=tool)
 
-                        # 필요하면 아래에서 응답 형태 맞춤(예: data = data.get("info", data))
-                        # data = data.get("info", data)
-
-                        # 어떤 MCP/툴/인자를 근거로 했는지 함께 전달
-                        for chunk in self._summarize_with_data(
+                        yield from self._summarize_with_data(
                             user_input, data, debug=debug, mcp=mcp, tool=tool, args=args
-                        ):
-                            yield chunk
-
+                        )
                         self._log(debug, "run.end", status="ok")
                         debug["log"] = debug.get("events", [])
                         return
+                    
                     except Exception as ex:
                         debug["execution"]["plan"] = {"mode": "direct", "reason": f"mcp_call_failed: {ex}"}
                         self._log(debug, "mcp.call.error", error=str(ex))
-                        yield "[MCP 호출 실패 → Direct로 전환]\n"
+                        yield from self._incomplete_stream(user_input, ex)
+
                 else:
                     debug["execution"]["plan"] = {"mode": "direct", "reason": "validation_failed"}
                     self._log(debug, "plan", mode="direct", reason="validation_failed")
                     yield "[인자 검증 실패 → Direct로 전환]\n"
                     for e in v["errors"]:
                         yield f"- {e}\n"
+            
+            elif decision.get("route") == "TOOL_INCOMPLETE":
+
+                reason = decision["reason"]
+                debug["execution"]["plan"] = {"mode": "incomplete", "reason": decision.get("reason", reason)}
+                self._log(debug, "plan", mode="incomplete", reason=decision.get("reason"))
+
+                yield from self._incomplete_stream(user_input, reason)
+
             else:
                 debug["execution"]["plan"] = {"mode": "direct", "reason": decision.get("reason", "llm_decision_direct")}
                 self._log(debug, "plan", mode="direct", reason=decision.get("reason"))
+
+                yield from self._direct_stream(user_input, debug=debug)
+                
         else:
+            yield from self._direct_stream(user_input, debug=debug)
             debug["execution"]["plan"] = {"mode": "direct", "reason": "no_tools"}
             self._log(debug, "plan", mode="direct", reason="no_tools")
 
-        # Direct 경로
-        for chunk in self._direct_stream(user_input, debug=debug):
-            yield chunk
         self._log(debug, "run.end", status="ok")
-        debug["log"] = debug.get("events", [])
+        debug["log"] = debug.get("events", [])   # ← 추가

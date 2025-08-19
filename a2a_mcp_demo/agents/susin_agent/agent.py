@@ -18,32 +18,6 @@ class Agent(MCPAgentBase):
     def __init__(self, llm_client: OpenAI):
         super().__init__(llm_client, agent_dir=Path(__file__).parent)
 
-    def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
-        user_prompt = (
-            "실패 이유를 토대로 사용자에게 양해를 구해줘.\n"
-            f"사용자 요청 : {user_input}"
-            f"실패 이유 : {debug}"
-        )
-        if debug is not None:
-            debug.setdefault("execution", {}).setdefault("direct", {})["prompt"] = f"""
-[시스템 프롬프트]
-{self.init_system}
-
-[유저 프롬프트]
-{user_prompt}
-            """
-        self._log(debug, "direct.start", user_input=user_input)
-
-        messages = [
-            {"role": "system", "content": self.init_system},
-            {"role": "user", "content": user_prompt},
-        ]
-        resp = self.llm.chat.completions.create(model="gpt-4o", messages=messages, stream=True)
-        for ch in resp:
-            if getattr(ch.choices[0].delta, "content", None):
-                yield ch.choices[0].delta.content
-        self._log(debug, "direct.end")
-
     def execute(self, user_input: str, debug: Optional[Dict[str, Any]] = None):
 
         if debug is None:
@@ -80,11 +54,6 @@ class Agent(MCPAgentBase):
 
                     return decision
                 
-                # 검증 실패 시 Direct로 내려가서 텍스트 생성
+            elif decision.get("route") == "TOOL_INCOMPLETE" or decision.get("route") == "DIRECT":
 
-                # ───────── Direct 텍스트 생성 ─────────
-
-                chunks = []
-                for ch in self._direct_stream(user_input, debug=debug):
-                    chunks.append(ch)
-                return "".join(chunks)
+                return decision

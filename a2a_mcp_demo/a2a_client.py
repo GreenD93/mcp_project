@@ -206,3 +206,21 @@ class A2AClient:
         except Exception:
             return None
         return None
+
+    # TEMP code for susin agent
+    def _direct_stream(self, user_input: str, debug: Optional[Dict[str, Any]] = None) -> Iterator[str]:
+
+        user_prompt = (
+            "실패 이유를 토대로 사용자에게 양해를 구해줘.\n"
+            "사용자가 잘 이해할 수 있게 친절하고 줄바꿈해서!\n"
+            f"사용자 요청 : {user_input}"
+            f"실패 이유 : {debug}"
+        )
+
+        messages = [
+            {"role": "user", "content": user_prompt},
+        ]
+        resp = self.llm.chat.completions.create(model="gpt-4o", messages=messages, stream=True)
+        for ch in resp:
+            if getattr(ch.choices[0].delta, "content", None):
+                yield ch.choices[0].delta.content

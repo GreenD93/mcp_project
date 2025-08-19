@@ -133,9 +133,12 @@ class MCPAgentBase:
 당신의 임무는 사용자의 요청에 적절한 MCP Tool이 있는지 판단하고, 있다면 어떤 Tool이고 어떤 파라미터를 넘겨야 하는지를 결정하는 것입니다.
 선정/비선정의 이유(reason)를 1~2문장으로 함께 제공하세요.
 
-응답 형식은 반드시 다음 중 하나여야 합니다 (순수 JSON, 코드블록 금지):
+출력 형식 규칙 (아주 중요):
+- 반드시 아래 세 가지 형식 중 하나여야 합니다.
+- JSON만 단독으로 출력해야 하며, 어떠한 설명, 코드블록(예: ```json), 주석, 추가 텍스트도 포함하지 마세요.
+- JSON 키와 값은 정확히 지정된 구조만 사용하세요.
 
-1) 호출 가능:
+1) 호출 가능 (필수 파라미터 충족 → Tool 실행 가능)
 {{
   "mcp": "<mcp 이름>",
   "tool_name": "<tool 이름>",
@@ -144,11 +147,18 @@ class MCPAgentBase:
   "reason": "왜 이 도구를 선택했는지 간단한 근거"
 }}
 
-2) 호출 불가(직접 응답):
+2) 호출 불가 - Tool은 맞지만 필수 파라미터 부족
+{{
+  "route": "TOOL_INCOMPLETE",
+  "reason": "Tool을 사용해야 하지만 필수 파라미터가 부족하여 호출 불가능한 이유"
+}}
+
+3) 호출 불가 - Tool이 없거나, 없어도 직접 해결 가능
 {{
   "route": "DIRECT",
-  "reason": "도구를 쓰지 않는 이유(부적합/필수 파라미터 부족 등)"
+  "reason": "적합한 Tool이 없거나, Tool이 필요하지 않아 직접 처리 가능한 이유"
 }}
+
 """.strip()
         self.log("tool.prompt", role_text=role_text, user_input=user_input, tool_count=len(tool_metadata))
         return prompt
@@ -296,3 +306,20 @@ class MCPAgentBase:
             debug.setdefault("events", []).append({"event": event, **fields})
         except Exception:
             pass
+
+    def _incomplete_stream(self, user_input: str, reason: Optional[Dict[str, Any]] = None) -> Iterator[str]:
+
+        user_prompt = (
+            "실패 이유를 토대로 사용자에게 양해를 구해줘.\n"
+            "사용자가 잘 이해할 수 있게 친절하고 줄바꿈해서!\n"
+            f"사용자 요청 : {user_input}"
+            f"실패 이유 : {reason}"
+        )
+
+        messages = [
+            {"role": "user", "content": user_prompt},
+        ]
+        resp = self.llm.chat.completions.create(model="gpt-4o", messages=messages, stream=True)
+        for ch in resp:
+            if getattr(ch.choices[0].delta, "content", None):
+                yield ch.choices[0].delta.content
