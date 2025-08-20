@@ -74,13 +74,10 @@ class Agent(MCPAgentBase):
 
         sys = self.init_system
         usr = (
-            "아래 정보를 바탕으로, 사용자의 요청을 처리하기 위해 수행한 조치(사용 도구/엔드포인트 포함), "
-            "사용한 핵심 인자, 그리고 반환된 결과의 요점을 2~4문장으로 간결히 요약해줘. "
             "성공/실패/부분 성공 여부가 드러나도록 쓰고, 민감정보는 일부 마스킹해. "
-            "필요하면 마지막에 사용자에게 도움이 될 짧은 한 문장을 덧붙여도 좋아(선택).\n\n"
+            "사용자가 읽기 편하게 줄바꿈, 띄어쓰기해서 잘 알려줘"
+            
             f"[사용자 요청]\n{user_input}\n\n"
-            f"[도구]\n{mcp}.{tool}\n\n"
-            f"[입력 인자]\n{json.dumps(args or {}, ensure_ascii=False, indent=2)}\n\n"
             f"[실행 결과]\n{data_text}"
         )
         self._log(debug, "summarize.start", mcp=mcp, tool=tool)
